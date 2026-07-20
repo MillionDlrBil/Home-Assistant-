@@ -2,6 +2,8 @@ blueprint:
   name: Person Enter/Leave Notification
   description: Get notified when specified people enter or leave any of the selected zones. Select multiple phones cleanly and optionally include notification images.
   domain: automation
+  author: MillionDlrBil
+  source_url: https://github.com/MillionDlrBil/Home-Assistant-/blob/main/zone_notification_blueprint.yaml
   input:
     persons:
       name: Persons / Device Trackers
@@ -40,14 +42,6 @@ blueprint:
       name: Notification Title (Optional)
       default: ""
       selector: {text: {}}
-    custom_enter_message:
-      name: Custom Arrival Message (Optional)
-      default: ""
-      selector: {text: {multiline: true}}
-    custom_leave_message:
-      name: Custom Departure Message (Optional)
-      default: ""
-      selector: {text: {multiline: true}}
     notification_image:
       name: Notification Image URL / Local Path (Optional)
       description: "Paste a web URL or local path (e.g. /local/life360.png placed inside your /config/www/ folder)."
@@ -64,8 +58,6 @@ trigger:
 
 variables:
   chosen_event_type: !input event_type
-  custom_enter: !input custom_enter_message
-  custom_leave: !input custom_leave_message
   custom_title: !input notification_title
   critical_override: !input is_critical
   monitored_zones: !input target_zones
@@ -79,8 +71,8 @@ variables:
   to_state_val: "{{ trigger.to_state.state if has_trigger else 'home' }}"
   from_state_val: "{{ trigger.from_state.state if has_trigger else 'not_home' }}"
   
-  to_zone_entity: "{% if to_state_val == 'home' %} zone.home {% elif to_state_val == 'not_home' %} none {% else %} {{ 'zone.' ~ to_state_val }} {% endif %}"
-  from_zone_entity: "{% if from_state_val == 'home' %} zone.home {% elif from_state_val == 'not_home' %} none {% else %} {{ 'zone.' ~ from_state_val }} {% endif %}"
+  to_zone_entity: "{% if to_state_val == 'home' %} zone.home {% elif to_state_val == 'not_home' %} none {% else %} {{ 'zone.' ~ to_state_val | lower | replace(' ', '_') }} {% endif %}"
+  from_zone_entity: "{% if from_state_val == 'home' %} zone.home {% elif from_state_val == 'not_home' %} none {% else %} {{ 'zone.' ~ from_state_val | lower | replace(' ', '_') }} {% endif %}"
 
   current_event: >-
     {% if has_trigger %}
@@ -97,9 +89,9 @@ variables:
 
   final_message: >-
     {% if current_event == 'enter' %}
-      {{ custom_enter if custom_enter != "" else person ~ " has arrived at " ~ zone_name ~ "." }}
+      {{ person ~ " has arrived at " ~ zone_name ~ "." }}
     {% elif current_event == 'leave' %}
-      {{ custom_leave if custom_leave != "" else person ~ " has left " ~ zone_name ~ "." }}
+      {{ person ~ " has left " ~ zone_name ~ "." }}
     {% else %}
       {% set from_name = state_attr(from_zone_entity, 'friendly_name') if has_value(from_zone_entity) else from_state_val | title %}
       {% set to_name = state_attr(to_zone_entity, 'friendly_name') if has_value(to_zone_entity) else to_state_val | title %}
@@ -124,7 +116,7 @@ action:
           - repeat:
               for_each: "{{ target_devices }}"
               sequence:
-                - action: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
+                - action: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | trim | slugify }}"
                   data:
                     title: "{{ custom_title }}"
                     message: "{{ final_message }}"
@@ -139,7 +131,7 @@ action:
           - repeat:
               for_each: "{{ target_devices }}"
               sequence:
-                - action: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
+                - action: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | trim | slugify }}"
                   data:
                     title: "{{ custom_title }}"
                     message: "{{ final_message }}"
