@@ -1,0 +1,149 @@
+blueprint:
+  name: Person Enter/Leave Notification
+  description: Get notified when specified people enter or leave any of the selected zones. Select multiple phones cleanly and optionally include notification images.
+  domain: automation
+  input:
+    persons:
+      name: Persons / Device Trackers
+      selector:
+        entity:
+          multiple: true
+          domain: [person, device_tracker]
+    target_zones:
+      name: Zones
+      default: []
+      selector:
+        entity:
+          multiple: true
+          domain: zone
+    notify_devices:
+      name: Devices to Notify
+      selector:
+        device:
+          integration: mobile_app
+          multiple: true
+    event_type:
+      name: Trigger Event
+      default: both
+      selector:
+        select:
+          options:
+            - {label: "Enter Only", value: "enter"}
+            - {label: "Leave Only", value: "leave"}
+            - {label: "Enter and Leave", value: "both"}
+    validation_delay:
+      name: Pass-through Delay (Seconds)
+      default: 0
+      selector:
+        number: {min: 0, max: 120, unit_of_measurement: s, mode: slider}
+    notification_title:
+      name: Notification Title (Optional)
+      default: ""
+      selector: {text: {}}
+    custom_enter_message:
+      name: Custom Arrival Message (Optional)
+      default: ""
+      selector: {text: {multiline: true}}
+    custom_leave_message:
+      name: Custom Departure Message (Optional)
+      default: ""
+      selector: {text: {multiline: true}}
+    notification_image:
+      name: Notification Image URL / Local Path (Optional)
+      description: "Paste a web URL or local path (e.g. /local/life360.png placed inside your /config/www/ folder)."
+      default: ""
+      selector: {text: {}}
+    is_critical:
+      name: Make it a Critical Alert?
+      default: false
+      selector: {boolean: {}}
+
+trigger:
+  - platform: state
+    entity_id: !input persons
+
+variables:
+  chosen_event_type: !input event_type
+  custom_enter: !input custom_enter_message
+  custom_leave: !input custom_leave_message
+  custom_title: !input notification_title
+  critical_override: !input is_critical
+  monitored_zones: !input target_zones
+  target_devices: !input notify_devices
+  img_url: !input notification_image
+  delay_amount: !input validation_delay
+  
+  has_trigger: "{{ trigger is defined and trigger.to_state is defined and trigger.from_state is defined }}"
+  person: "{{ trigger.to_state.name if has_trigger else 'Test Person' }}"
+  trigger_entity: "{{ trigger.entity_id if has_trigger else 'none' }}"
+  to_state_val: "{{ trigger.to_state.state if has_trigger else 'home' }}"
+  from_state_val: "{{ trigger.from_state.state if has_trigger else 'not_home' }}"
+  
+  to_zone_entity: "{% if to_state_val == 'home' %} zone.home {% elif to_state_val == 'not_home' %} none {% else %} {{ 'zone.' ~ to_state_val }} {% endif %}"
+  from_zone_entity: "{% if from_state_val == 'home' %} zone.home {% elif from_state_val == 'not_home' %} none {% else %} {{ 'zone.' ~ from_state_val }} {% endif %}"
+
+  current_event: >-
+    {% if has_trigger %}
+      {% if to_state_val != 'not_home' and from_state_val == 'not_home' %}
+        {% if monitored_zones == [] or to_zone_entity in monitored_zones %} enter {% else %} ignore {% endif %}
+      {% elif to_state_val == 'not_home' and from_state_val != 'not_home' %}
+        {% if monitored_zones == [] or from_zone_entity in monitored_zones %} leave {% else %} ignore {% endif %}
+      {% elif to_state_val != 'not_home' and from_state_val != 'not_home' and to_state_val != from_state_val %}
+        {% if monitored_zones == [] or to_zone_entity in monitored_zones or from_zone_entity in monitored_zones %} cross_zone {% else %} ignore {% endif %}
+      {% else %} ignore {% endif %}
+    {% else %} enter {% endif %}
+
+  zone_name: "{{ state_attr(from_zone_entity, 'friendly_name') if current_event == 'leave' else state_attr(to_zone_entity, 'friendly_name') if has_value(to_zone_entity) else to_state_val | title }}"
+
+  final_message: >-
+    {% if current_event == 'enter' %}
+      {{ custom_enter if custom_enter != "" else person ~ " has arrived at " ~ zone_name ~ "." }}
+    {% elif current_event == 'leave' %}
+      {{ custom_leave if custom_leave != "" else person ~ " has left " ~ zone_name ~ "." }}
+    {% else %}
+      {% set from_name = state_attr(from_zone_entity, 'friendly_name') if has_value(from_zone_entity) else from_state_val | title %}
+      {% set to_name = state_attr(to_zone_entity, 'friendly_name') if has_value(to_zone_entity) else to_state_val | title %}
+      {{ person ~ " left " ~ from_name ~ " and arrived at " ~ to_name ~ "." }}
+    {% endif %}
+
+condition:
+  - condition: template
+    value_template: "{{ current_event != 'ignore' }}"
+
+action:
+  - choose:
+      # ARRIVAL AND CROSSING EVENTS
+      - conditions: >
+          {{ (current_event == 'enter' and (chosen_event_type == 'enter' or chosen_event_type == 'both')) or 
+             (current_event == 'cross_zone' and chosen_event_type == 'both') }}
+        sequence:
+          - delay:
+              seconds: "{{ delay_amount }}"
+          - condition: template
+            value_template: "{{ states(trigger_entity) == to_state_val if has_trigger else true }}"
+          - repeat:
+              for_each: "{{ target_devices }}"
+              sequence:
+                - action: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
+                  data:
+                    title: "{{ custom_title }}"
+                    message: "{{ final_message }}"
+                    data: >-
+                      {% set dev = device_attr(repeat.item, 'name') | lower %}
+                      {% set p = {"push":{"sound":{"name":"default","critical":1,"volume":1.0}},"ttl":0,"priority":"high"} if critical_override else {} %}
+                      {% if img_url != "" %}{% set p = dict(p, attachment={"url":img_url}) if ("iphone" in dev or "ipad" in dev) else dict(p, image=img_url) %}{% endif %}{{ p }}
+      
+      # DEPARTURE EVENTS
+      - conditions: "{{ current_event == 'leave' and (chosen_event_type == 'leave' or chosen_event_type == 'both') }}"
+        sequence:
+          - repeat:
+              for_each: "{{ target_devices }}"
+              sequence:
+                - action: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
+                  data:
+                    title: "{{ custom_title }}"
+                    message: "{{ final_message }}"
+                    data: >-
+                      {% set dev = device_attr(repeat.item, 'name') | lower %}
+                      {% set p = {"push":{"sound":{"name":"default","critical":1,"volume":1.0}},"ttl":0,"priority":"high"} if critical_override else {} %}
+                      {% if img_url != "" %}{% set p = dict(p, attachment={"url":img_url}) if ("iphone" in dev or "ipad" in dev) else dict(p, image=img_url) %}{% endif %}{{ p }}
