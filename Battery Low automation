@@ -1,0 +1,22 @@
+alias: Doorbell Low Battery Alert
+description: Checks cached battery level once a day without waking the doorbell
+triggers:
+  - at: "10:00:00"
+    trigger: time
+conditions:
+  - condition: numeric_state
+    entity_id: sensor.front_door_front_door_battery
+    below: 20
+actions:
+  - action: notify.mobile_app_billy_s25
+    data:
+      title: 🪫 Doorbell Battery Low
+      message: >-
+        The Reolink Doorbell battery is currently at {{
+        states('sensor.front_door_front_door_battery') }}%. Please recharge it
+        soon.
+      data:
+        ttl: 0
+        priority: high
+        channel: Alarm
+mode: single
