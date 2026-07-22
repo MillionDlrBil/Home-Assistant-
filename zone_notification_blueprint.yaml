@@ -3,7 +3,7 @@ blueprint:
   description: Get notified when specified people enter or leave any of the selected zones. Select multiple phones cleanly and optionally include notification images.
   domain: automation
   author: MillionDlrBil
-  source_url: https://github.com/MillionDlrBil/Home-Assistant-/blob/main/zone_notification_blueprint.yaml
+  source_url: https://github.com/MillionDlrBil/Home-Assistant-/blob/Blueprints/zone_notification_blueprint.yaml
   input:
     persons:
       name: Persons / Device Trackers
@@ -122,7 +122,20 @@ action:
                     message: "{{ final_message }}"
                     data: >-
                       {% set dev = device_attr(repeat.item, 'name') | lower %}
-                      {% set p = {"push":{"sound":{"name":"default","critical":1,"volume":1.0}},"ttl":0,"priority":"high"} if critical_override else {} %}
+                      {% set config = {
+                        "ttl": 0,
+                        "priority": "high",
+                        "channel": "Zone Alerts",
+                        "category": "zone_alerts",
+                        "tag": "loc_" ~ as_timestamp(now()),
+                        "group": "family_tracking",
+                        "thread_id": "family_tracking"
+                      } %}
+                      {% if critical_override %}
+                        {% set p = dict(config, push={"sound": {"name": "default", "critical": 1, "volume": 1.0}}) %}
+                      {% else %}
+                        {% set p = config %}
+                      {% endif %}
                       {% if img_url != "" %}{% set p = dict(p, attachment={"url":img_url}) if ("iphone" in dev or "ipad" in dev) else dict(p, image=img_url) %}{% endif %}{{ p }}
       
       # DEPARTURE EVENTS
@@ -137,5 +150,18 @@ action:
                     message: "{{ final_message }}"
                     data: >-
                       {% set dev = device_attr(repeat.item, 'name') | lower %}
-                      {% set p = {"push":{"sound":{"name":"default","critical":1,"volume":1.0}},"ttl":0,"priority":"high"} if critical_override else {} %}
+                      {% set config = {
+                        "ttl": 0,
+                        "priority": "high",
+                        "channel": "Zone Alerts",
+                        "category": "zone_alerts",
+                        "tag": "loc_" ~ as_timestamp(now()),
+                        "group": "family_tracking",
+                        "thread_id": "family_tracking"
+                      } %}
+                      {% if critical_override %}
+                        {% set p = dict(config, push={"sound": {"name": "default", "critical": 1, "volume": 1.0}}) %}
+                      {% else %}
+                        {% set p = config %}
+                      {% endif %}
                       {% if img_url != "" %}{% set p = dict(p, attachment={"url":img_url}) if ("iphone" in dev or "ipad" in dev) else dict(p, image=img_url) %}{% endif %}{{ p }}
