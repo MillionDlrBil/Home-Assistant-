@@ -3,7 +3,7 @@ blueprint:
   description: Sends a notification when below 20%, checks once a day
   domain: automation
   author: MillionDlrBil
-  source_url: https://github.com/MillionDlrBil/Home-Assistant-/blob/Blueprints/Reolink%20Wifi%20Doorbell%20battery%20low
+  source_url: https://github.com/MillionDlrBil/Home-Assistant-/blob/Blueprints/Reolink_wifi_doorbell_battery_low.yaml
 alias: Doorbell Low Battery Alert
 description: Checks cached battery level once a day without waking the doorbell
 triggers:
