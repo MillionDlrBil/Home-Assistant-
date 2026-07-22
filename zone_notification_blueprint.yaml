@@ -165,3 +165,4 @@ action:
                         {% set p = config %}
                       {% endif %}
                       {% if img_url != "" %}{% set p = dict(p, attachment={"url":img_url}) if ("iphone" in dev or "ipad" in dev) else dict(p, image=img_url) %}{% endif %}{{ p }}
+                      
