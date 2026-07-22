@@ -3,7 +3,7 @@ blueprint:
   description: Sends a single rich notification with a camera snapshot to multiple devices. Kept 1s delay for Wi-Fi Hub snapshot stability.
   domain: automation
   author: MillionDlrBil
-  source_url: https://github.com/MillionDlrBil/Home-Assistant-/edit/Blueprints/Reolink_rich_notifications.yaml
+  source_url: https://github.com/MillionDlrBil/Home-Assistant-/blob/Blueprints/Reolink_rich_notifications.yaml
   input:
     person_sensor:
       name: Person Detection Sensor
