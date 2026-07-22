@@ -1,27 +1,41 @@
 blueprint:
   name: Reolink Wifi Doorbell camera battery low notification
-  description: Sends a notification when below 20%, checks once a day
+  description: Sends a high priority notification when below 20%, checks once a day.
   domain: automation
-  author: MillionDlrBil
-  source_url: https://github.com/MillionDlrBil/Home-Assistant-/blob/Blueprints/Reolink_wifi_doorbell_battery_low.yaml
-alias: Doorbell Low Battery Alert
-description: Checks cached battery level once a day without waking the doorbell
+  source_url: https://github.com
+  input:
+    battery_sensor:
+      name: Battery Sensor
+      description: Select your Reolink doorbell battery sensor entity.
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: battery
+    notify_device:
+      name: Notification Service
+      description: Select the mobile app notification service for your phone (e.g., notify.mobile_app_billy_s25).
+      selector:
+        action: {}
+
+mode: single
+
 triggers:
   - at: "10:00:00"
     trigger: time
+
 conditions:
   - condition: numeric_state
-    entity_id: sensor.front_door_front_door_battery
+    entity_id: !input battery_sensor
     below: 20
+
 actions:
-  - action: notify.mobile_app_billy_s25
+  - action: !input notify_device
     data:
       title: "🪫 Doorbell Battery Low"
       message: >-
-        The Reolink Doorbell battery is currently at {{
-        states('sensor.front_door_front_door_battery') }}%. Please recharge it soon.
+        The Reolink Doorbell battery is currently low at {{ states(trigger.entity_id) if trigger.entity_id is defined else states(blueprint.input.battery_sensor) }}%. Please recharge it soon.
       data:
         ttl: 0
         priority: high
         channel: Alarm
-mode: single
