@@ -129,7 +129,7 @@ action:
                         "category": "zone_alerts",
                         "tag": "loc_" ~ as_timestamp(now()),
                         "group": "family_tracking",
-                        "thread_id": "family_tracking"
+                        "thread-id": "family_tracking"
                       } %}
                       {% if critical_override %}
                         {% set p = dict(config, push={"sound": {"name": "default", "critical": 1, "volume": 1.0}}) %}
@@ -157,7 +157,7 @@ action:
                         "category": "zone_alerts",
                         "tag": "loc_" ~ as_timestamp(now()),
                         "group": "family_tracking",
-                        "thread_id": "family_tracking"
+                        "thread-id": "family_tracking"
                       } %}
                       {% if critical_override %}
                         {% set p = dict(config, push={"sound": {"name": "default", "critical": 1, "volume": 1.0}}) %}
