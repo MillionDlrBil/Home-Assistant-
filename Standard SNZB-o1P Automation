@@ -1,0 +1,56 @@
+alias: Sonoff SNZB-01P Button Actions
+description: Control devices using native ZHA single, double, and long press triggers
+mode: restart
+triggers:
+  - device_id: 5d7928a47b7a1693aa0ae0f13b2dfa7e
+    domain: zha
+    type: remote_button_short_press
+    subtype: button
+    trigger: device
+    id: single_press
+  - device_id: 5d7928a47b7a1693aa0ae0f13b2dfa7e
+    domain: zha
+    type: remote_button_double_press
+    subtype: button
+    trigger: device
+    id: double_press
+  - device_id: 5d7928a47b7a1693aa0ae0f13b2dfa7e
+    domain: zha
+    type: remote_button_long_press
+    subtype: button
+    trigger: device
+    id: long_press
+conditions: []
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - single_press
+        sequence:
+          - action: light.turn_on
+            target:
+              device_id: b100d4b329a79046d12ffd2cdb6a396b
+            data:
+              color_temp_kelvin: 5004
+              brightness_pct: 30
+      - conditions:
+          - condition: trigger
+            id:
+              - double_press
+        sequence:
+          - action: light.turn_off
+            target:
+              device_id: b100d4b329a79046d12ffd2cdb6a396b
+            data: {}
+      - conditions:
+          - condition: trigger
+            id:
+              - long_press
+        sequence:
+          - action: light.toggle
+            target:
+              entity_id: light.front_porch
+            data:
+              color_temp_kelvin: 6500
+              brightness_pct: 100
