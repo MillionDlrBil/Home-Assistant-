@@ -1,0 +1,40 @@
+alias: Sonoff SNZB-01P Button (zha)
+description: Control devices using native ZHA single, double, and long press triggers
+triggers:
+  - device_id: 
+    domain: zha
+    type: remote_button_short_press
+    subtype: button
+    trigger: device
+    id: single_press
+  - device_id: 
+    domain: zha
+    type: remote_button_double_press
+    subtype: button
+    trigger: device
+    id: double_press
+  - device_id: 
+    domain: zha
+    type: remote_button_long_press
+    subtype: button
+    trigger: device
+    id: long_press
+conditions: []
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - single_press
+        sequence: []
+      - conditions:
+          - condition: trigger
+            id:
+              - double_press
+        sequence: []
+      - conditions:
+          - condition: trigger
+            id:
+              - long_press
+        sequence: []
+mode: restart
