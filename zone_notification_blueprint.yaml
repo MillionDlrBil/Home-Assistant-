@@ -1,5 +1,5 @@
 blueprint:
-  name: Person Enter/Leave Notification
+  name: Zone Notification (Claude)
   description: Get notified when specified people enter or leave any of the selected zones. Select multiple phones cleanly and optionally include notification images.
   domain: automation
   author: MillionDlrBil
@@ -52,6 +52,8 @@ blueprint:
       default: false
       selector: {boolean: {}}
 
+mode: parallel
+
 trigger:
   - platform: state
     entity_id: !input persons
@@ -64,39 +66,69 @@ variables:
   target_devices: !input notify_devices
   img_url: !input notification_image
   delay_amount: !input validation_delay
-  
+
   has_trigger: "{{ trigger is defined and trigger.to_state is defined and trigger.from_state is defined }}"
   person: "{{ trigger.to_state.name if has_trigger else 'Test Person' }}"
   trigger_entity: "{{ trigger.entity_id if has_trigger else 'none' }}"
   to_state_val: "{{ trigger.to_state.state if has_trigger else 'home' }}"
   from_state_val: "{{ trigger.from_state.state if has_trigger else 'not_home' }}"
-  
-  to_zone_entity: "{% if to_state_val == 'home' %} zone.home {% elif to_state_val == 'not_home' %} none {% else %} {{ 'zone.' ~ to_state_val | lower | replace(' ', '_') }} {% endif %}"
-  from_zone_entity: "{% if from_state_val == 'home' %} zone.home {% elif from_state_val == 'not_home' %} none {% else %} {{ 'zone.' ~ from_state_val | lower | replace(' ', '_') }} {% endif %}"
+
+  to_zone_entity: >-
+    {%- if to_state_val == 'home' -%}
+      zone.home
+    {%- elif to_state_val == 'not_home' -%}
+      none
+    {%- else -%}
+      {%- set ns = namespace(match='zone.' ~ (to_state_val | lower | replace(' ', '_'))) -%}
+      {%- for z in monitored_zones -%}
+        {%- if z.split('.')[1] == to_state_val or (state_attr(z, 'friendly_name') | default('', true) | lower) == (to_state_val | lower) -%}
+          {%- set ns.match = z -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{- ns.match -}}
+    {%- endif -%}
+
+  from_zone_entity: >-
+    {%- if from_state_val == 'home' -%}
+      zone.home
+    {%- elif from_state_val == 'not_home' -%}
+      none
+    {%- else -%}
+      {%- set ns = namespace(match='zone.' ~ (from_state_val | lower | replace(' ', '_'))) -%}
+      {%- for z in monitored_zones -%}
+        {%- if z.split('.')[1] == from_state_val or (state_attr(z, 'friendly_name') | default('', true) | lower) == (from_state_val | lower) -%}
+          {%- set ns.match = z -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{- ns.match -}}
+    {%- endif -%}
 
   current_event: >-
-    {% if has_trigger %}
-      {% if to_state_val != 'not_home' and from_state_val == 'not_home' %}
-        {% if monitored_zones == [] or to_zone_entity in monitored_zones %} enter {% else %} ignore {% endif %}
-      {% elif to_state_val == 'not_home' and from_state_val != 'not_home' %}
-        {% if monitored_zones == [] or from_zone_entity in monitored_zones %} leave {% else %} ignore {% endif %}
-      {% elif to_state_val != 'not_home' and from_state_val != 'not_home' and to_state_val != from_state_val %}
-        {% if monitored_zones == [] or to_zone_entity in monitored_zones or from_zone_entity in monitored_zones %} cross_zone {% else %} ignore {% endif %}
-      {% else %} ignore {% endif %}
-    {% else %} enter {% endif %}
+    {%- if not has_trigger -%}
+      enter
+    {%- elif to_state_val != 'not_home' and from_state_val == 'not_home' -%}
+      {%- if monitored_zones == [] or to_zone_entity in monitored_zones -%}enter{%- else -%}ignore{%- endif -%}
+    {%- elif to_state_val == 'not_home' and from_state_val != 'not_home' -%}
+      {%- if monitored_zones == [] or from_zone_entity in monitored_zones -%}leave{%- else -%}ignore{%- endif -%}
+    {%- elif to_state_val != 'not_home' and from_state_val != 'not_home' and to_state_val != from_state_val -%}
+      {%- if monitored_zones == [] or to_zone_entity in monitored_zones or from_zone_entity in monitored_zones -%}cross_zone{%- else -%}ignore{%- endif -%}
+    {%- else -%}
+      ignore
+    {%- endif -%}
 
-  zone_name: "{{ state_attr(from_zone_entity, 'friendly_name') if current_event == 'leave' else state_attr(to_zone_entity, 'friendly_name') if has_value(to_zone_entity) else to_state_val | title }}"
+  zone_name: >-
+    {{ (state_attr(from_zone_entity, 'friendly_name') if has_value(from_zone_entity) else from_state_val | title) if current_event == 'leave' else (state_attr(to_zone_entity, 'friendly_name') if has_value(to_zone_entity) else to_state_val | title) }}
 
   final_message: >-
-    {% if current_event == 'enter' %}
-      {{ person ~ " has arrived at " ~ zone_name ~ "." }}
-    {% elif current_event == 'leave' %}
-      {{ person ~ " has left " ~ zone_name ~ "." }}
-    {% else %}
-      {% set from_name = state_attr(from_zone_entity, 'friendly_name') if has_value(from_zone_entity) else from_state_val | title %}
-      {% set to_name = state_attr(to_zone_entity, 'friendly_name') if has_value(to_zone_entity) else to_state_val | title %}
-      {{ person ~ " left " ~ from_name ~ " and arrived at " ~ to_name ~ "." }}
-    {% endif %}
+    {%- if current_event == 'enter' -%}
+      {{ person }} has arrived at {{ zone_name }}.
+    {%- elif current_event == 'leave' -%}
+      {{ person }} has left {{ zone_name }}.
+    {%- else -%}
+      {%- set from_name = state_attr(from_zone_entity, 'friendly_name') if has_value(from_zone_entity) else from_state_val | title -%}
+      {%- set to_name = state_attr(to_zone_entity, 'friendly_name') if has_value(to_zone_entity) else to_state_val | title -%}
+      {{ person }} left {{ from_name }} and arrived at {{ to_name }}.
+    {%- endif -%}
 
 condition:
   - condition: template
@@ -106,7 +138,7 @@ action:
   - choose:
       # ARRIVAL AND CROSSING EVENTS
       - conditions: >
-          {{ (current_event == 'enter' and (chosen_event_type == 'enter' or chosen_event_type == 'both')) or 
+          {{ (current_event == 'enter' and (chosen_event_type == 'enter' or chosen_event_type == 'both')) or
              (current_event == 'cross_zone' and chosen_event_type == 'both') }}
         sequence:
           - delay:
@@ -116,53 +148,62 @@ action:
           - repeat:
               for_each: "{{ target_devices }}"
               sequence:
-                - action: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | trim | slugify }}"
+                - variables:
+                    device_name: "{{ device_attr(repeat.item, 'name_by_user') | default(device_attr(repeat.item, 'name'), true) | slugify }}"
+                    is_ios: >-
+                      {{ 'iphone' in (device_attr(repeat.item, 'name_by_user') | default(device_attr(repeat.item, 'name'), true) | lower)
+                         or 'ipad' in (device_attr(repeat.item, 'name_by_user') | default(device_attr(repeat.item, 'name'), true) | lower) }}
+                    notification_payload: >-
+                      {%- set config = {
+                        'ttl': 0,
+                        'priority': 'high',
+                        'channel': 'Zone Alerts',
+                        'category': 'zone_alerts',
+                        'tag': 'loc_' ~ as_timestamp(now()),
+                        'group': 'family_tracking',
+                        'thread-id': 'family_tracking'
+                      } -%}
+                      {%- set config = dict(config, push={'sound': {'name': 'default', 'critical': 1, 'volume': 1.0}}) if critical_override else config -%}
+                      {%- if img_url != '' -%}
+                        {%- set config = dict(config, attachment={'url': img_url}) if is_ios else dict(config, image=img_url) -%}
+                      {%- endif -%}
+                      {{ config }}
+                - action: "notify.mobile_app_{{ device_name }}"
+                  continue_on_error: true
                   data:
                     title: "{{ custom_title }}"
                     message: "{{ final_message }}"
-                    data: >-
-                      {% set dev = device_attr(repeat.item, 'name') | lower %}
-                      {% set config = {
-                        "ttl": 0,
-                        "priority": "high",
-                        "channel": "Zone Alerts",
-                        "category": "zone_alerts",
-                        "tag": "loc_" ~ as_timestamp(now()),
-                        "group": "family_tracking",
-                        "thread-id": "family_tracking"
-                      } %}
-                      {% if critical_override %}
-                        {% set p = dict(config, push={"sound": {"name": "default", "critical": 1, "volume": 1.0}}) %}
-                      {% else %}
-                        {% set p = config %}
-                      {% endif %}
-                      {% if img_url != "" %}{% set p = dict(p, attachment={"url":img_url}) if ("iphone" in dev or "ipad" in dev) else dict(p, image=img_url) %}{% endif %}{{ p }}
-      
+                    data: "{{ notification_payload }}"
+
       # DEPARTURE EVENTS
       - conditions: "{{ current_event == 'leave' and (chosen_event_type == 'leave' or chosen_event_type == 'both') }}"
         sequence:
           - repeat:
               for_each: "{{ target_devices }}"
               sequence:
-                - action: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | trim | slugify }}"
+                - variables:
+                    device_name: "{{ device_attr(repeat.item, 'name_by_user') | default(device_attr(repeat.item, 'name'), true) | slugify }}"
+                    is_ios: >-
+                      {{ 'iphone' in (device_attr(repeat.item, 'name_by_user') | default(device_attr(repeat.item, 'name'), true) | lower)
+                         or 'ipad' in (device_attr(repeat.item, 'name_by_user') | default(device_attr(repeat.item, 'name'), true) | lower) }}
+                    notification_payload: >-
+                      {%- set config = {
+                        'ttl': 0,
+                        'priority': 'high',
+                        'channel': 'Zone Alerts',
+                        'category': 'zone_alerts',
+                        'tag': 'loc_' ~ as_timestamp(now()),
+                        'group': 'family_tracking',
+                        'thread-id': 'family_tracking'
+                      } -%}
+                      {%- set config = dict(config, push={'sound': {'name': 'default', 'critical': 1, 'volume': 1.0}}) if critical_override else config -%}
+                      {%- if img_url != '' -%}
+                        {%- set config = dict(config, attachment={'url': img_url}) if is_ios else dict(config, image=img_url) -%}
+                      {%- endif -%}
+                      {{ config }}
+                - action: "notify.mobile_app_{{ device_name }}"
+                  continue_on_error: true
                   data:
                     title: "{{ custom_title }}"
                     message: "{{ final_message }}"
-                    data: >-
-                      {% set dev = device_attr(repeat.item, 'name') | lower %}
-                      {% set config = {
-                        "ttl": 0,
-                        "priority": "high",
-                        "channel": "Zone Alerts",
-                        "category": "zone_alerts",
-                        "tag": "loc_" ~ as_timestamp(now()),
-                        "group": "family_tracking",
-                        "thread-id": "family_tracking"
-                      } %}
-                      {% if critical_override %}
-                        {% set p = dict(config, push={"sound": {"name": "default", "critical": 1, "volume": 1.0}}) %}
-                      {% else %}
-                        {% set p = config %}
-                      {% endif %}
-                      {% if img_url != "" %}{% set p = dict(p, attachment={"url":img_url}) if ("iphone" in dev or "ipad" in dev) else dict(p, image=img_url) %}{% endif %}{{ p }}
-                      
+                    data: "{{ notification_payload }}"
