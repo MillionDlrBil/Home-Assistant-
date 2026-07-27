@@ -1,9 +1,17 @@
 blueprint:
-  name: Reolink Rich Person Detection Notifications (Standard - Optimized)
-  description: Sends a single rich notification with a camera snapshot to multiple devices. Kept 1s delay for Wi-Fi Hub snapshot stability.
+  name: Reolink Rich Person Detection Notifications (Claude)
+  description: >
+    Sends a single rich notification with a camera snapshot to multiple devices.
+    Kept 1s delay for Wi-Fi Hub snapshot stability.
+
+
+    **Setup requirement:** before using this blueprint, manually create the folder
+    `/config/www/snapshots/` (e.g. via the File Editor or Samba/SSH add-on). Home
+    Assistant will not create this folder automatically, and the snapshot step will
+    silently fail without it.
   domain: automation
   author: MillionDlrBil
-  source_url: https://github.com/MillionDlrBil/Home-Assistant-/blob/Blueprints/Reolink_rich_notifications.yaml
+  source_url: https://github.com/MillionDlrBil/Home-Assistant-/edit/Blueprints/Reolink_rich_notifications.yaml
   input:
     person_sensor:
       name: Person Detection Sensor
@@ -21,7 +29,11 @@ blueprint:
             - domain: camera
     notify_devices:
       name: Notification Devices
-      description: Select all the mobile phones/devices (Android or iOS) that should receive this alert.
+      description: >
+        Select all the mobile phones/devices (Android or iOS) that should receive
+        this alert. Note: rich companion-app notifications (image, tap actions,
+        grouping) currently require the legacy per-device notify service, so this
+        uses devices rather than notify entities.
       selector:
         device:
           integration: mobile_app
@@ -41,7 +53,7 @@ condition:
 
 action:
   - delay: "00:00:01"
-  
+
   - variables:
       snapshot_id: "{{ now().strftime('%Y%m%d_%H%M%S') }}"
       snapshot_file: "/config/www/snapshots/doorbell_snapshot_{{ snapshot_id }}.jpg"
@@ -59,10 +71,11 @@ action:
       sequence:
         - variables:
             is_apple: "{{ 'apple' in (device_attr(repeat.item, 'manufacturer') | default('') | lower) }}"
-            app_link: "{{ 'https://reolink.com' if is_apple else 'app://com.mcu.reolink' }}"
+            app_link: "{{ 'https://reolink.com/ulink/' if is_apple else 'app://com.mcu.reolink' }}"
             device_name: "{{ device_attr(repeat.item, 'name_by_user') | default(device_attr(repeat.item, 'name'), true) | slugify }}"
-        
+
         - action: "notify.mobile_app_{{ device_name }}"
+          continue_on_error: true
           data:
             title: "Person Detected!"
             message: "Someone is at the door."
@@ -70,8 +83,8 @@ action:
               image: "{{ local_image_url }}"
               channel: "Camera Alerts"
               category: "camera_alerts"
-              clickAction: "{{ app_link if not is_apple }}"
-              url: "{{ app_link if is_apple }}"
+              clickAction: "{{ app_link if not is_apple else '' }}"
+              url: "{{ app_link if is_apple else '' }}"
               tag: "reolink_person_{{ snapshot_id }}"
               group: "reolink_person_alerts"
               thread-id: "reolink_person_alerts"
